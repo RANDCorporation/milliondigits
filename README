@@ -1,0 +1,35 @@
+A Million Random Digits with 100,000 Normal Deviates
+
+
+This is coded up using sqlite3 as the database.
+
+$ sqlite3 -init import.sql
+> .header on
+> .mode column
+> SELECT digit, COUNT(*) AS freq FROM digits GROUP BY digit ORDER BY digit;
+digit       freq      
+----------  ----------
+0           99803     
+1           100050    
+2           100640    
+3           100311    
+4           100094    
+5           100214    
+6           99942     
+7           99559     
+8           100107    
+9           99280     
+> SELECT SUM(val) FROM deviates;
+SUM(val)         
+-----------------
+-342.697999999514
+> -- RAND Office Phone Numbers
+> INSERT OR IGNORE INTO searchvals VALUES ('3930411'), ('4131100'), ('6832300');
+> SELECT q, page, rownum, orig_rowtext FROM dosearch WHERE found;
+q           page        rownum      orig_rowtext                                                   
+----------  ----------  ----------  ---------------------------------------------------------------
+4131100     293         14614       41069 15749  28541 31100  25983 21706  09643 07666  01573 52145
+
+
+Gary
+<gbriggs@rand.org>
