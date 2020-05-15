@@ -3,9 +3,7 @@ A Million Random Digits with 100,000 Normal Deviates
 
 This is coded up using sqlite3 as the database.
 
-$ sqlite3 -init import.sql
-> .header on
-> .mode column
+$ sqlite3 -header -column -init import.sql
 > SELECT digit, COUNT(*) AS freq FROM digits GROUP BY digit ORDER BY digit;
 digit       freq      
 ----------  ----------
@@ -19,10 +17,10 @@ digit       freq
 7           99559     
 8           100107    
 9           99280     
-> SELECT SUM(val) FROM deviates;
-SUM(val)         
------------------
--342.697999999514
+> SELECT MIN(val), AVG(val), MAX(val), SUM(val) FROM deviates;
+MIN(val)    AVG(val)              MAX(val)    SUM(val)
+----------  --------------------  ----------  -----------------
+-4.417      -0.00342697999999514  3.976       -342.697999999514
 > -- RAND Office Phone Numbers
 > INSERT OR IGNORE INTO searchvals VALUES ('3930411'), ('4131100'), ('6832300');
 > SELECT q, page, rownum, orig_rowtext FROM dosearch WHERE found;
