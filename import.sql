@@ -93,12 +93,19 @@ SELECT * FROM (
   ORDER BY matchlen DESC;
 
 CREATE VIEW IF NOT EXISTS deviates_hist AS
-WITH createbar(b) AS (SELECT '#' UNION ALL SELECT b || '#' FROM createbar WHERE LENGTH(b)<500),
+WITH params(max_bar_length, bucket_width) AS (SELECT 80, 0.2),
+ createbar(b) AS (SELECT '#' UNION ALL SELECT b || '#' FROM createbar, params WHERE LENGTH(b)<=max_bar_length),
  bar(b) AS (SELECT b FROM createbar ORDER BY LENGTH(b) DESC LIMIT 1),
- buckets(b_min, b_max, delta) AS (SELECT MIN(val)-0.0001, MIN(val)+0.2, 0.2 FROM deviates
-   UNION ALL SELECT b_min+delta, b_max+delta, delta FROM buckets WHERE b_max<=(SELECT MAX(val) FROM deviates))
-SELECT SUBSTR('   ' || ROUND((b_min+b_max)/2.0, 1), -4) AS x,
-   CASE WHEN COUNT(*)=0 THEN ' ' WHEN COUNT(*)<50 THEN '.' ELSE SUBSTR(b, 1, COUNT(*)/50) END AS bar
-   FROM bar, buckets LEFT JOIN deviates ON deviates.val<=buckets.b_max AND deviates.val>buckets.b_min
-   GROUP BY buckets.b_min ORDER BY val;
+ buckets(b_min, b_max) AS (SELECT MIN(val)-bucket_width, MIN(val) FROM deviates, params
+   UNION ALL SELECT b_min+bucket_width, b_max+bucket_width FROM buckets, params
+         WHERE b_min<=(SELECT MAX(val)+bucket_width FROM deviates)),
+ counts(b_min, b_max, b_label, cnt, maxcnt, barheight) AS (SELECT b_min, b_max, SUBSTR('   ' || ROUND((b_min+b_max)/2.0, 1), -4),
+        COUNT(*), MAX(COUNT(*)) OVER (), (max_bar_length*COUNT(*)/(MAX(COUNT(*)) OVER ()))
+	FROM params, buckets LEFT JOIN deviates ON deviates.val<=buckets.b_max AND deviates.val>buckets.b_min
+	GROUP BY b_min)
+SELECT b_label AS x, 
+   CASE WHEN cnt=0 THEN ' ' WHEN barheight=0 THEN '.' ELSE SUBSTR(b, 1, barheight) END AS bar,
+	'           ' || cnt AS n
+   FROM params, bar, counts
+   ORDER BY b_min;
 
