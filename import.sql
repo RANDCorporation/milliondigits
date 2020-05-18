@@ -229,3 +229,15 @@ SELECT digit1,
 FROM digitpairs_50k
  GROUP BY digit1;
 
+-- Length of runs
+CREATE VIEW runs AS
+WITH RECURSIVE runs(start, d, runlen) AS (SELECT id, digit, 1 FROM digits WHERE id=1
+ UNION ALL SELECT (CASE WHEN runs.d=digits.digit THEN start ELSE digits.id END),
+                  digits.digit,
+                (CASE WHEN runs.d=digits.digit THEN runlen+1 ELSE 1 END)
+                FROM runs INNER JOIN digits ON runs.start+runlen=digits.id
+                 WHERE digits.id<=50000),
+     longestrun_bystart(start, d, runlen) AS (SELECT start, d, MAX(runlen) FROM runs GROUP BY start, d)
+    SELECT runlen, COUNT(*) AS cnt FROM longestrun_bystart
+    GROUP BY runlen ORDER BY runlen ASC;
+
