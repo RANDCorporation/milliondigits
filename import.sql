@@ -5,10 +5,10 @@ CREATE TABLE IF NOT EXISTS digits (id INTEGER PRIMARY KEY, rownum INTEGER NOT NU
 
 CREATE VIEW IF NOT EXISTS digits_insview AS SELECT 'nothing' AS record;
 CREATE TRIGGER IF NOT EXISTS trig_digits_insview INSTEAD OF INSERT ON digits_insview FOR EACH ROW BEGIN
-  INSERT INTO digits_row (rownum, page, orig_rowtext, rowtext) VALUES
+  INSERT OR IGNORE INTO digits_row (rownum, page, orig_rowtext, rowtext) VALUES
      (CAST(SUBSTR(NEW.record, 1, 5) AS INTEGER), 1+(CAST(SUBSTR(NEW.record, 1, 5) AS INTEGER)/50),
               SUBSTR(NEW.record, 9), REPLACE(SUBSTR(NEW.record, 9), ' ', ''));
-  INSERT INTO digits_tuples (rownum, colnum, t) VALUES
+  INSERT OR IGNORE INTO digits_tuples (rownum, colnum, t) VALUES
        (CAST(SUBSTR(NEW.record, 1, 5) AS INTEGER), 0, SUBSTR(NEW.record,  9, 5)),
        (CAST(SUBSTR(NEW.record, 1, 5) AS INTEGER), 1, SUBSTR(NEW.record, 15, 5)),
        (CAST(SUBSTR(NEW.record, 1, 5) AS INTEGER), 2, SUBSTR(NEW.record, 22, 5)),
@@ -22,7 +22,7 @@ CREATE TRIGGER IF NOT EXISTS trig_digits_insview INSTEAD OF INSERT ON digits_ins
 END;
 
 CREATE TRIGGER IF NOT EXISTS trig_single_digit_ins AFTER INSERT ON digits_tuples FOR EACH ROW BEGIN
-   INSERT INTO digits (rownum, colnum, colidx, t) VALUES
+   INSERT OR IGNORE INTO digits (rownum, colnum, colidx, t) VALUES
        (NEW.rownum, NEW.colnum, 0, SUBSTR(NEW.t, 1, 1)),
        (NEW.rownum, NEW.colnum, 1, SUBSTR(NEW.t, 2, 1)),
        (NEW.rownum, NEW.colnum, 2, SUBSTR(NEW.t, 3, 1)),
@@ -42,9 +42,9 @@ CREATE TABLE IF NOT EXISTS deviates (id INTEGER PRIMARY KEY, rownum INTEGER NOT 
 
 CREATE VIEW IF NOT EXISTS deviates_insview AS SELECT 'nothing' AS record;
 CREATE TRIGGER IF NOT EXISTS trig_deviates_insview INSTEAD OF INSERT ON deviates_insview FOR EACH ROW BEGIN
-   INSERT INTO deviates_row (rownum, page, orig_rowtext) VALUES
+   INSERT OR IGNORE INTO deviates_row (rownum, page, orig_rowtext) VALUES
         (CAST(SUBSTR(NEW.record,1,4) AS INTEGER), 1+CAST(SUBSTR(NEW.record, 1, 5) AS INTEGER)/50, SUBSTR(NEW.record, 7));
-   INSERT INTO deviates(rownum, colnum, t) VALUES
+   INSERT OR IGNORE INTO deviates(rownum, colnum, t) VALUES
         (CAST(SUBSTR(NEW.record,1,4) AS INTEGER), 0, SUBSTR(NEW.record,  7, 7)),
         (CAST(SUBSTR(NEW.record,1,4) AS INTEGER), 1, SUBSTR(NEW.record, 14, 7)),
         (CAST(SUBSTR(NEW.record,1,4) AS INTEGER), 2, SUBSTR(NEW.record, 21, 8)),
@@ -61,24 +61,24 @@ END;
 
 UPDATE deviates SET val=(CASE WHEN SUBSTR(t,-1)='-' THEN -1 ELSE 1 END) * CAST(SUBSTR(t, 1, LENGTH(t)-1) AS REAL);
 
-CREATE UNIQUE INDEX idx_digits_row ON digits_row(rownum);
-CREATE UNIQUE INDEX idx_digits_tuples ON digits_tuples(rownum, colnum);
-CREATE UNIQUE INDEX idx_digits_rci ON digits(rownum, colnum, colidx);
-CREATE INDEX idx_digits_rcd ON digits(rownum, colnum, digit);
-CREATE INDEX idx_digits_t ON digits(t);
-CREATE INDEX idx_digits_d ON digits(digit);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_digits_row ON digits_row(rownum);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_digits_tuples ON digits_tuples(rownum, colnum);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_digits_rci ON digits(rownum, colnum, colidx);
+CREATE INDEX IF NOT EXISTS idx_digits_rcd ON digits(rownum, colnum, digit);
+CREATE INDEX IF NOT EXISTS idx_digits_t ON digits(t);
+CREATE INDEX IF NOT EXISTS idx_digits_d ON digits(digit);
 
-CREATE UNIQUE INDEX idx_deviates_row ON deviates_row(rownum);
-CREATE UNIQUE INDEX idx_deviates ON deviates(rownum, colnum);
-CREATE INDEX idx_deviates_val ON deviates(val);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_deviates_row ON deviates_row(rownum);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_deviates ON deviates(rownum, colnum);
+CREATE INDEX IF NOT EXISTS idx_deviates_val ON deviates(val);
 
 ANALYZE;
 
 
 -- To look for strings of numbers: Insert the search string into searchvals,
 --   then SELECT from dosearch
-CREATE TABLE searchvals (searchval TEXT NOT NULL, UNIQUE(searchval));
-CREATE VIEW dosearch AS
+CREATE TABLE IF NOT EXISTS searchvals (searchval TEXT NOT NULL, UNIQUE(searchval));
+CREATE VIEW IF NOT EXISTS dosearch AS
 WITH RECURSIVE q(q) AS (SELECT searchval FROM searchvals), 
   search AS (SELECT q.q AS q, id AS startid, digits.rownum AS startrownum,
         1 AS depth, id AS lastid, digits.t AS t_sofar, 0 AS found
@@ -116,6 +116,14 @@ SELECT b_label AS x,
 
 -- Chi-squared calculation on blocks of fifty thousand digits
 CREATE VIEW IF NOT EXISTS digit_freqs_50k AS
+WITH params AS (SELECT 1000 AS rows_per_block,50 AS digits_per_row,10 AS n_digits -- A thousand rows of fifty digits each
+    )
+  SELECT 1+rownum/rows_per_block AS blocknum,digit,
+     CAST(rows_per_block * digits_per_row AS REAL)/ n_digits AS expected,
+     CAST(COUNT(*) AS REAL) AS cnt
+   FROM params, digits GROUP BY rows_per_block, (rownum/ rows_per_block), digit;
+
+CREATE VIEW IF NOT EXISTS digit_freqs_50k_wide AS
 WITH params AS (SELECT 1000 AS rows_per_block,50 AS digits_per_row,10 AS n_digits -- A thousand rows of fifty digits each
     UNION ALL SELECT 20000 AS rows_per_block, 50 AS digits_per_row, 10 AS n_digits -- The whole set
     ),
@@ -177,14 +185,16 @@ SELECT dt.rownum, dt.colnum, dt.t,
         LEFT JOIN five ON five.r=dt.rownum AND five.c=dt.colnum;
 
 -- Rollup of poker totals
-CREATE VIEW pokertotals AS
+CREATE VIEW IF NOT EXISTS pokertotals AS SELECT hand, COUNT(*) AS cnt FROM poker GROUP BY hand;
+
+CREATE VIEW IF NOT EXISTS pokertotals_wide AS
 SELECT COUNT(bust) AS busts, COUNT(pair) AS pairs, COUNT(twopair) AS twopairs,
        COUNT(three) AS threes, COUNT(fullhouse) AS fullhouses, COUNT(four) AS fours, COUNT(five) AS fives,
        COUNT(bust)+COUNT(pair)+COUNT(twopair)+COUNT(three)+COUNT(fullhouse)+COUNT(four)+COUNT(five) AS totalhands
 FROM poker;
 
 -- Divide numbers up into ten blocks, then do variance and mean on the poker values
-CREATE VIEW poker_variance AS
+CREATE VIEW IF NOT EXISTS poker_variance AS
 WITH params AS (SELECT 10 AS num_blocks, COUNT(*) AS num_rows FROM digits_row),
     hands_per_block AS (SELECT rownum/(num_rows/num_blocks) AS blocknum, hand,
        CAST(COUNT(*) AS REAL) AS cnt,
@@ -195,7 +205,7 @@ SELECT hand, AVG(cnt) AS mean, SUM(difference*difference)/COUNT(*) AS variance, 
     FROM hands_per_block GROUP BY hand;
 
 -- SQLite doesn't have SQRT() built in; use Newton-Raphson approximation to get stddev
-CREATE VIEW poker_stddev AS
+CREATE VIEW IF NOT EXISTS poker_stddev AS
 WITH RECURSIVE newtonraphson AS (SELECT 1 AS iterations, hand, mean, variance, total,
                 variance/2.0 AS estimate_stddev, 1e-10 AS desired_accuracy FROM poker_variance
     UNION ALL SELECT 1+iterations, hand, mean, variance, total,
@@ -206,14 +216,14 @@ SELECT hand, total, mean, variance, estimate_stddev AS stddev FROM newtonraphson
    WHERE iterations=(SELECT MAX(iterations) FROM newtonraphson WHERE nr.hand=newtonraphson.hand);
 
 -- Look at pairs of first 50k digits
-CREATE VIEW digitpairs_50k AS
+CREATE VIEW IF NOT EXISTS digitpairs_50k AS
 SELECT d1.digit AS digit1, d2.digit AS digit2, COUNT(*) AS cnt
  FROM digits d1 INNER JOIN digits d2 ON d1.id=d2.id-1
  WHERE d1.id<=50000
  GROUP BY d1.digit, d2.digit;
 
 -- SQLite doesn't have PIVOT() built in
-CREATE VIEW digitpairs_50k_transposed AS
+CREATE VIEW IF NOT EXISTS digitpairs_50k_wide AS
 SELECT digit1,
        SUM(CASE WHEN digit2=0 THEN cnt END) AS "0",
        SUM(CASE WHEN digit2=1 THEN cnt END) AS "1",
@@ -230,7 +240,7 @@ FROM digitpairs_50k
  GROUP BY digit1;
 
 -- Length of runs
-CREATE VIEW runs AS
+CREATE VIEW IF NOT EXISTS runs AS
 WITH RECURSIVE runs(start, d, runlen) AS (SELECT id, digit, 1 FROM digits WHERE id=1
  UNION ALL SELECT (CASE WHEN runs.d=digits.digit THEN start ELSE digits.id END),
                   digits.digit,
