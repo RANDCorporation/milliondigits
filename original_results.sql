@@ -50,16 +50,45 @@ SELECT mr1418_freqs.blocknum, mr1418_freqs.digit, digit_freqs_50k.expected,
     AND mr1418_freqs.digit=digit_freqs_50k.digit;
 
 
+-- Table 2 "Distribution of Chi-square Values [of poker hands]"
+CREATE TABLE IF NOT EXISTS mr1418_poker_chi2 (p_min REAL, p_max REAL, chi2_min REAL, chi2_max REAL,
+     expected REAL NOT NULL, cnt REAL NOT NULL);
+INSERT OR IGNORE INTO mr1418_poker_chi2 (p_min, p_max, chi2_min, chi2_max, expected, cnt) VALUES
+(NULL,  0.9, 0.00, 1.60, 20, 22),
+( 0.9,  0.8, 1.61, 2.35, 20, 19),
+( 0.8,  0.7, 2.36, 3.00, 20, 22),
+( 0.7,  0.6, 3.01, 3.70, 20, 19),
+( 0.6,  0.5, 3.71, 4.35, 20, 20),
+( 0.5,  0.4, 4.36, 5.20, 20, 29),
+( 0.4,  0.3, 5.21, 6.10, 20, 22),
+( 0.3,  0.2, 6.11, 7.30, 20, 15),
+( 0.2,  0.1, 7.31, 9.20, 20, 15),
+( 0.1, NULL, 9.21, NULL, 20, 17);
+
+CREATE TABLE IF NOT EXISTS mr1418_poker_expected_per_block
+   (hand TEXT NOT NULL, symbol TEXT NOT NULL, expected REAL, UNIQUE(hand));
+INSERT INTO mr1418_poker_expected_per_block (hand, symbol, expected) VALUES
+('bust', 'abcde', 302.4),
+('pair', 'aabcd', 504),
+('twopair', 'aabbc', 108),
+('three', 'aaabc', 72),
+('fullhouse', 'aaabb', 9),
+('four', 'aaaab', 4.5),
+('five', 'aaaaa', 0.1);
+
+CREATE VIEW IF NOT EXISTS check_poker_chi2 AS
+
+
 -- Table 3 "Poker Test on the Million Digits (200,000 Poker Hands)"
-CREATE TABLE IF NOT EXISTS mr1418_poker (hand TEXT NOT NULL, expected_cnt REAL NOT NULL, cnt INTEGER NOT NULL, UNIQUE(hand));
+CREATE TABLE IF NOT EXISTS mr1418_poker_total (hand TEXT NOT NULL, expected_cnt REAL NOT NULL, cnt INTEGER NOT NULL, UNIQUE(hand));
 INSERT OR IGNORE INTO mr1418_poker (hand, expected_cnt, cnt)
    VALUES ('bust', 60480, 60479), ('pair', 100800, 100570), ('twopair', 21600, 21572),
     ('three', 14400, 14659), ('fullhouse', 1800, 1788), ('four', 900, 914), ('five', 20, 18);
 
 CREATE VIEW IF NOT EXISTS check_poker AS
-SELECT mr1418_poker.hand, mr1418_poker.expected_cnt, mr1418_poker.cnt AS orig_cnt, pokertotals.cnt AS new_cnt,
-   mr1418_poker.cnt-pokertotals.cnt AS abs_delta, (mr1418_poker.cnt-pokertotals.cnt)/CAST(mr1418_poker.cnt AS REAL) AS rel_delta
-  FROM mr1418_poker INNER JOIN pokertotals ON pokertotals.hand=mr1418_poker.hand;
+SELECT mr1418_poker_total.hand, mr1418_poker_total.expected_cnt, mr1418_poker_total.cnt AS orig_cnt, pokertotals.cnt AS new_cnt,
+   mr1418_poker_total.cnt-pokertotals.cnt AS abs_delta, (mr1418_poker_total.cnt-pokertotals.cnt)/CAST(mr1418_poker_total.cnt AS REAL) AS rel_delta
+  FROM mr1418_poker_total INNER JOIN pokertotals ON pokertotals.hand=mr1418_poker_total.hand;
 
 -- Table 5 "Frequencies of Ordered Pairs of Digits"
 CREATE TABLE IF NOT EXISTS mr1418_orderedpairs (digit1 INTEGER NOT NULL, digit2 INTEGER NOT NULL,
