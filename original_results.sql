@@ -67,7 +67,7 @@ INSERT OR IGNORE INTO mr1418_poker_chi2 (p_min, p_max, chi2_min, chi2_max, expec
 
 CREATE TABLE IF NOT EXISTS mr1418_poker_expected_per_block
    (hand TEXT NOT NULL, symbol TEXT NOT NULL, expected REAL, UNIQUE(hand));
-INSERT INTO mr1418_poker_expected_per_block (hand, symbol, expected) VALUES
+INSERT OR IGNORE INTO mr1418_poker_expected_per_block (hand, symbol, expected) VALUES
 ('bust', 'abcde', 302.4),
 ('pair', 'aabcd', 504),
 ('twopair', 'aabbc', 108),
@@ -76,12 +76,10 @@ INSERT INTO mr1418_poker_expected_per_block (hand, symbol, expected) VALUES
 ('four', 'aaaab', 4.5),
 ('five', 'aaaaa', 0.1);
 
-CREATE VIEW IF NOT EXISTS check_poker_chi2 AS
-
 
 -- Table 3 "Poker Test on the Million Digits (200,000 Poker Hands)"
 CREATE TABLE IF NOT EXISTS mr1418_poker_total (hand TEXT NOT NULL, expected_cnt REAL NOT NULL, cnt INTEGER NOT NULL, UNIQUE(hand));
-INSERT OR IGNORE INTO mr1418_poker (hand, expected_cnt, cnt)
+INSERT OR IGNORE INTO mr1418_poker_total (hand, expected_cnt, cnt)
    VALUES ('bust', 60480, 60479), ('pair', 100800, 100570), ('twopair', 21600, 21572),
     ('three', 14400, 14659), ('fullhouse', 1800, 1788), ('four', 900, 914), ('five', 20, 18);
 
@@ -93,7 +91,7 @@ SELECT mr1418_poker_total.hand, mr1418_poker_total.expected_cnt, mr1418_poker_to
 -- Table 5 "Frequencies of Ordered Pairs of Digits"
 CREATE TABLE IF NOT EXISTS mr1418_orderedpairs (digit1 INTEGER NOT NULL, digit2 INTEGER NOT NULL,
      cnt INTEGER NOT NULL, UNIQUE(digit1, digit2));
-INSERT INTO mr1418_orderedpairs (digit1, digit2, cnt) VALUES
+INSERT OR IGNORE INTO mr1418_orderedpairs (digit1, digit2, cnt) VALUES
     (0, 0, 508), (0, 1, 456), (0, 2, 509), (0, 3, 507), (0, 4, 502),
     (0, 5, 489), (0, 6, 471), (0, 7, 504), (0, 8, 488), (0, 9, 489),
     (1, 0, 510), (1, 1, 514), (1, 2, 474), (1, 3, 514), (1, 4, 504),
