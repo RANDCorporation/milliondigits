@@ -1,7 +1,7 @@
 #!/bin/sh
 
 db=checks.sqlite
-output_file=checks.html
+output_file=milliondigits_checks.html
 
 echo 'Constructing db'
 rm -f ${db}
