@@ -1,3 +1,6 @@
+CREATE TABLE IF NOT EXISTS view_description
+  (view_name TEXT NOT NULL, long_name TEXT NOT NULL, description TEXT NOT NULL, UNIQUE(view_name));
+
 -- Table 1 "Frequencies of One Million Digits"
 CREATE TABLE IF NOT EXISTS mr1418_freqs (blocknum INTEGER NOT NULL, digit INTEGER NOT NULL, cnt INTEGER NOT NULL, UNIQUE(blocknum, digit));
 INSERT OR IGNORE INTO mr1418_freqs (blocknum, digit, cnt) VALUES
@@ -51,6 +54,10 @@ SELECT mr1418_freqs.blocknum, mr1418_freqs.digit, digit_freqs_50k.expected,
 
 
 -- SQLite lacks PIVOT()
+INSERT OR IGNORE INTO view_description (view_name, long_name, description) VALUES
+  ('check_freq', 'Table 1: Frequencies of One Million Digits',
+   'In 20 blocks of 50k digits, frequencies of each digit');
+
 CREATE VIEW IF NOT EXISTS check_freq AS
 WITH q AS (SELECT blocknum
     ,SUM(CASE WHEN digit=0 THEN new_cnt END) AS new_cnt_0, SUM(CASE WHEN digit=0 THEN abs_delta END) delta_0
@@ -116,6 +123,10 @@ SELECT mr1418_poker_total.hand, mr1418_poker_total.expected_cnt, mr1418_poker_to
    pokertotals.cnt-mr1418_poker_total.cnt AS abs_delta, (pokertotals.cnt-mr1418_poker_total.cnt)/CAST(mr1418_poker_total.cnt AS REAL) AS rel_delta
   FROM mr1418_poker_total INNER JOIN pokertotals ON pokertotals.hand=mr1418_poker_total.hand;
 
+INSERT OR IGNORE INTO view_description (view_name, long_name, description) VALUES
+  ('check_poker', 'Table 3: Poker Test on the Million Digits (200,000 Poker Hands)',
+   'Digits are broken into groups of five then evaluated as poker hands');
+
 CREATE VIEW IF NOT EXISTS check_poker AS
 SELECT pcp.hand, expected_cnt, orig_cnt,
   new_cnt || CASE WHEN abs_delta=0 THEN '' ELSE PRINTF(' (%+d)', abs_delta) END AS new_cnt
@@ -155,6 +166,10 @@ SELECT digitpairs_50k.digit1, digitpairs_50k.digit2, mr1418_orderedpairs.cnt AS 
      FROM digitpairs_50k INNER JOIN mr1418_orderedpairs ON
         digitpairs_50k.digit1=mr1418_orderedpairs.digit1 AND digitpairs_50k.digit2=mr1418_orderedpairs.digit2;
 
+INSERT OR IGNORE INTO view_description (view_name, long_name, description) VALUES
+  ('check_ordered_pair', 'Table 5: Frequencies of Ordered Pairs of Digits',
+   'Each pair of digits in the first 50,000 is tabulated to look for serial associations');
+
 CREATE VIEW IF NOT EXISTS check_ordered_pair AS 
 WITH q AS (SELECT digit1
     ,SUM(CASE WHEN digit2=0 THEN new_cnt END) AS new_cnt_0, SUM(CASE WHEN digit2=0 THEN abs_delta END) delta_0
@@ -193,6 +208,10 @@ CREATE VIEW IF NOT EXISTS precursor_check_runs AS
        SUM(mr1418_runs.runlen*mr1418_runs.cnt) OVER () AS orig_total_digits,
        SUM(mr1418_runs.runlen*runs.cnt) OVER () AS new_total_digits
     FROM mr1418_runs INNER JOIN runs ON mr1418_runs.runlen=runs.runlen;
+
+INSERT OR IGNORE INTO view_description (view_name, long_name, description) VALUES
+  ('check_runs', 'Table 6: Run Test',
+   'Runs of digits in the first 50,000 are counted');
 
 CREATE VIEW IF NOT EXISTS check_runs AS
 SELECT runlen, expected_cnt, orig_cnt,
