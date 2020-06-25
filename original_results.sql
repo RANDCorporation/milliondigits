@@ -187,9 +187,15 @@ CREATE TABLE IF NOT EXISTS mr1418_runs (runlen INTEGER NOT NULL, expected_cnt RE
 INSERT OR IGNORE INTO mr1418_runs (runlen, expected_cnt, cnt) 
    VALUES (1, 40500, 40410), (2, 4050, 4055), (3, 405, 421), (4, 40.5, 48), (5, 4.5, 5);
 
-CREATE VIEW IF NOT EXISTS check_runs AS
+CREATE VIEW IF NOT EXISTS precursor_check_runs AS
    SELECT mr1418_runs.runlen, mr1418_runs.expected_cnt, mr1418_runs.cnt AS orig_cnt, runs.cnt AS new_cnt,
-        runs.cnt-mr1418_runs.cnt AS abs_delta, (runs.cnt-mr1418_runs.cnt)/CAST(mr1418_runs.cnt AS REAL) AS rel_delta
+        runs.cnt-mr1418_runs.cnt AS abs_delta, (runs.cnt-mr1418_runs.cnt)/CAST(mr1418_runs.cnt AS REAL) AS rel_delta,
+       SUM(mr1418_runs.runlen*mr1418_runs.cnt) OVER () AS orig_total_digits,
+       SUM(mr1418_runs.runlen*runs.cnt) OVER () AS new_total_digits
     FROM mr1418_runs INNER JOIN runs ON mr1418_runs.runlen=runs.runlen;
 
+CREATE VIEW IF NOT EXISTS check_runs AS
+SELECT runlen, expected_cnt, orig_cnt,
+       new_cnt || CASE WHEN 0=abs_delta THEN '' ELSE PRINTF(' (%+d)', abs_delta) END AS new_cnt
+  FROM precursor_check_runs ORDER BY runlen;
 
