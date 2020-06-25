@@ -94,15 +94,15 @@ INSERT OR IGNORE INTO mr1418_poker_chi2 (p_min, p_max, chi2_min, chi2_max, expec
 ( 0.1, NULL, 9.21, NULL, 20, 17);
 
 CREATE TABLE IF NOT EXISTS mr1418_poker_expected_per_block
-   (hand TEXT NOT NULL, symbol TEXT NOT NULL, expected REAL, UNIQUE(hand));
-INSERT OR IGNORE INTO mr1418_poker_expected_per_block (hand, symbol, expected) VALUES
-('bust', 'abcde', 302.4),
-('pair', 'aabcd', 504),
-('twopair', 'aabbc', 108),
-('three', 'aaabc', 72),
-('fullhouse', 'aaabb', 9),
-('four', 'aaaab', 4.5),
-('five', 'aaaaa', 0.1);
+   (hand TEXT NOT NULL, handrank INTEGER NOT NULL, symbol TEXT NOT NULL, expected REAL, UNIQUE(hand));
+INSERT OR IGNORE INTO mr1418_poker_expected_per_block (hand, handrank, symbol, expected) VALUES
+('bust', 1, 'abcde', 302.4),
+('pair', 2, 'aabcd', 504),
+('twopair', 3, 'aabbc', 108),
+('three', 4, 'aaabc', 72),
+('fullhouse', 5, 'aaabb', 9),
+('four', 6, 'aaaab', 4.5),
+('five', 7, 'aaaaa', 0.1);
 
 
 -- Table 3 "Poker Test on the Million Digits (200,000 Poker Hands)"
@@ -111,10 +111,17 @@ INSERT OR IGNORE INTO mr1418_poker_total (hand, expected_cnt, cnt)
    VALUES ('bust', 60480, 60479), ('pair', 100800, 100570), ('twopair', 21600, 21572),
     ('three', 14400, 14659), ('fullhouse', 1800, 1788), ('four', 900, 914), ('five', 20, 18);
 
-CREATE VIEW IF NOT EXISTS check_poker AS
+CREATE VIEW IF NOT EXISTS precursor_check_poker AS
 SELECT mr1418_poker_total.hand, mr1418_poker_total.expected_cnt, mr1418_poker_total.cnt AS orig_cnt, pokertotals.cnt AS new_cnt,
    pokertotals.cnt-mr1418_poker_total.cnt AS abs_delta, (pokertotals.cnt-mr1418_poker_total.cnt)/CAST(mr1418_poker_total.cnt AS REAL) AS rel_delta
   FROM mr1418_poker_total INNER JOIN pokertotals ON pokertotals.hand=mr1418_poker_total.hand;
+
+CREATE VIEW IF NOT EXISTS check_poker AS
+SELECT pcp.hand, expected_cnt, orig_cnt,
+  new_cnt || CASE WHEN abs_delta=0 THEN '' ELSE PRINTF(' (%+d)', abs_delta) END AS new_cnt
+FROM precursor_check_poker pcp INNER JOIN mr1418_poker_expected_per_block rnk ON pcp.hand=rnk.hand
+ ORDER BY handrank ASC;
+
 
 -- Table 5 "Frequencies of Ordered Pairs of Digits"
 CREATE TABLE IF NOT EXISTS mr1418_orderedpairs (digit1 INTEGER NOT NULL, digit2 INTEGER NOT NULL,
