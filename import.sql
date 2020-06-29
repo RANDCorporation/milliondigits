@@ -260,5 +260,23 @@ WITH RECURSIVE runs(start, d, runlen) AS (SELECT id, digit, 1 FROM digits WHERE 
     SELECT runlen, COUNT(*) AS cnt FROM longestrun_bystart
     GROUP BY runlen ORDER BY runlen ASC;
 
+-- What would this look like on its original punchcards?
+CREATE TABLE IF NOT EXISTS punchcard_widths (width INTEGER NOT NULL, UNIQUE(width));
+INSERT INTO punchcard_widths (width) VALUES (80);
+
+CREATE VIEW IF NOT EXISTS punchcards AS
+WITH cardwidth(width) AS (SELECT width FROM punchcard_widths),
+     cardranges AS (SELECT min(id) AS startid, max(id) AS endid, (id-1)/width AS cardnum, width AS cardwidth
+   FROM digits, cardwidth GROUP BY width, (id-1)/width),
+digits_iter(startid, endid, cardnum, cardwidth, card_digits, len) AS
+    (SELECT startid, endid, cardnum, cardwidth, digit, 1
+        FROM digits INNER JOIN cardranges ON digits.id=cardranges.startid
+        UNION ALL
+    SELECT startid, endid, cardnum, cardwidth, card_digits || digit, len+1 FROM
+        digits_iter INNER JOIN digits ON digits.id=startid+len
+        WHERE digits.id<=endid),
+cards AS (SELECT startid, endid, cardnum, cardwidth, card_digits FROM digits_iter WHERE len=cardwidth)
+SELECT * FROM cards;
+
 .read "original_results.sql"
 
