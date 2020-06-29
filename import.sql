@@ -216,9 +216,18 @@ SELECT hand, total, mean, variance, estimate_stddev AS stddev FROM newtonraphson
    WHERE iterations=(SELECT MAX(iterations) FROM newtonraphson WHERE nr.hand=newtonraphson.hand);
 
 -- Look at pairs of first 50k digits
+
+-- Naively, this leads to one additional 4,4 but one fewer 4,1
+-- Looping around from 50,000 to 1 for pairing adds the "error" of an additional 9,1 rather than a 9,4
+-- But that does mean that a transpostion:
+--  X41_____X94 [with X the same]
+--   switch 4 and 9:
+--  X91_____X44
+-- Would generate an error making this consistent with observed frequencies
+
 CREATE VIEW IF NOT EXISTS digitpairs_50k AS
 SELECT d1.digit AS digit1, d2.digit AS digit2, COUNT(*) AS cnt
- FROM digits d1 INNER JOIN digits d2 ON d1.id=d2.id-1
+FROM digits d1 INNER JOIN digits d2 ON (CASE WHEN d1.id=50000 THEN 1 ELSE d1.id+1 END)=d2.id
  WHERE d1.id<=50000
  GROUP BY d1.digit, d2.digit;
 
