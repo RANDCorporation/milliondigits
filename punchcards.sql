@@ -1,16 +1,35 @@
 -- The digits were originally on punchcards.
 -- What would this look like on its original punchcards?
 
-CREATE TABLE IF NOT EXISTS punchcard_widths (width INTEGER NOT NULL, UNIQUE(width));
-INSERT INTO punchcard_widths (width) VALUES (80);
+
+CREATE TABLE IF NOT EXISTS punchcard_widths (width INTEGER NOT NULL, description TEXT NOT NULL, UNIQUE(width));
+CREATE TABLE IF NOT EXISTS punchcard_ranges (cardwidth INTEGER NOT NULL REFERENCES punchcard_widths(width),
+	 startid INTEGER NOT NULL, endid INTEGER NOT NULL, cardnum INTEGER NOT NULL,
+	 UNIQUE(cardwidth, startid, endid));
+CREATE INDEX IF NOT EXISTS idx_punchcard_ranges_sw ON punchcard_ranges(startid, cardwidth);
+CREATE TRIGGER IF NOT EXISTS trig_create_cards AFTER INSERT ON punchcard_widths FOR EACH ROW BEGIN
+  DELETE FROM punchcard_ranges WHERE cardwidth=NEW.width;
+  INSERT INTO punchcard_ranges (startid, endid, cardnum, cardwidth) SELECT min(id), max(id), (id-1)/NEW.width, NEW.width
+     FROM digits GROUP BY NEW.width, (id-1)/NEW.width;
+END;
+
+-- https://en.wikipedia.org/wiki/Punched_card#Card_formats
+-- Only include likely candidates for the million original digits
+INSERT INTO punchcard_widths (width, description) VALUES
+ -- (40, 'IBM Port-a-Punch'),
+ (80, 'Standard IBM card'),
+ (72, 'FORTRAN'),
+ -- (90, 'Remington Rand Double 45'),
+ -- (96, 'IBM 96-column [post-1955]'),
+ (160, 'Double-coded Standard IBM card'),
+ (144, 'Double-coded FORTRAN');
+
+ANALYZE;
 
 CREATE VIEW IF NOT EXISTS punchcards AS
-WITH cardwidth(width) AS (SELECT width FROM punchcard_widths),
-     cardranges AS (SELECT min(id) AS startid, max(id) AS endid, (id-1)/width AS cardnum, width AS cardwidth
-   FROM digits, cardwidth GROUP BY width, (id-1)/width),
-digits_iter(startid, endid, cardnum, cardwidth, card_digits, len) AS
+WITH RECURSIVE digits_iter(startid, endid, cardnum, cardwidth, card_digits, len) AS
     (SELECT startid, endid, cardnum, cardwidth, digit, 1
-        FROM digits INNER JOIN cardranges ON digits.id=cardranges.startid
+        FROM digits INNER JOIN punchcard_ranges ON digits.id=punchcard_ranges.startid
         UNION ALL
     SELECT startid, endid, cardnum, cardwidth, card_digits || digit, len+1 FROM
         digits_iter INNER JOIN digits ON digits.id=startid+len
@@ -49,45 +68,75 @@ ORDER BY card1;
 
 -- Fix a sequencing error with a single card move:
 -- Most plausible story is one card out of order, so look for
---   where the group of cards could be moved along
+--    examples.
+-- Notionally, look for adjacent pairs of cards in the deck. Pairs should
+--    either have "9,1" or "4,4" on their boundaries. Then, take one
+--    item from one pair, and insert it between the other pair.
+--    [Also must consider the digits at the other ends]
+-- This gives four categories of examples, we'll look for separately:
+--  (A is any digit)
 
 -- Category 1:
--- xxxx9 1x/x4 4xxxx xxxx4 4xxxx 
---         ^--- take one or more adjacent cards
---                        ^--- insert here
--- Pairs 91 44 44 become 94 41 44
+--      v-- break this pair
+-- xxxx4 4xxx4 Axxxx
+--         ^-- move this card
+--              to here --v
+--                   xxxx9 1xxxx
+-- 44 4A 91 becomes 4A 94 41
 
 -- Category 2:
--- xxxx4 4x/x9 1xxxx xxxx4 4xxxx 
---         ^--- take one or more adjacent cards
---                        ^--- insert here
--- Pairs 44 91 44 becomes 41 44 94
+--            v-- break this pair
+-- xxxxA 4xxx4 4xxxx
+--         ^-- move this card
+--              to here --v
+--                   xxxx9 1xxxx
+-- A4 44 91 becomes A4 94 41
+
+-- Category 3:
+--      v-- break this pair
+-- xxxx9 1xxx4 4xxxx
+--         ^-- move this card
+--              to here --v
+--                   xxxx4 4xxxx
+-- 91 44 44 becomes 94 41 44
+
+-- Category 4:
+--            v-- break this pair
+-- xxxx4 4xxx9 1xxxx
+--         ^-- move this card
+--              to here --v
+--                   xxxx4 4xxxx
+-- 44 91 44 becomes 41 44 94
+
 
 CREATE VIEW sequence_move_one_card AS
-WITH pc_50k AS (SELECT * FROM punchcards WHERE endid<=50000),
-         my_cards AS (SELECT pc_50k.*,
-    SUBSTR(LAG(pc_50k.card_digits) OVER(PARTITION BY pc_50k.cardwidth ORDER BY pc_50k.startid ASC), pc_50k.cardwidth)  AS prev_last,
-    SUBSTR(pc_50k.card_digits, 1, 1) AS first,
-    SUBSTR(pc_50k.card_digits, pc_50k.cardwidth) AS last,
-    SUBSTR(LEAD(pc_50k.card_digits) OVER(PARTITION BY pc_50k.cardwidth ORDER BY pc_50k.startid ASC), pc_50k.cardwidth) AS next_first
-    FROM pc_50k),
-  candidate_insertpoints AS (SELECT * FROM my_cards WHERE prev_last='4' AND first='4'),
-  candidate_sequencing_cat1 AS (SELECT 'cat1' AS category, cardwidth,
-                       (prev_last='9' AND first='1') AS is_seq_start, (last='4' AND next_first='4') AS is_seq_end, *
-             FROM my_cards WHERE (prev_last='9' AND first='1') OR (last='4' AND next_first='4')),
-  candidate_sequencing_cat2 AS (SELECT 'cat2' AS category, cardwidth,
-                       (prev_last='4' AND first='4') AS is_seq_start, (last='9' AND next_first='1') AS is_seq_end, *
-             FROM my_cards WHERE (prev_last='4' AND first='4') OR (last='9' AND next_first='1')),
-  candidate_sequencing AS (SELECT * FROM candidate_sequencing_cat1 UNION ALL SELECT * FROM candidate_sequencing_cat2),
-  candidate_sequences AS (SELECT cand_start.category, cand_start.cardwidth, cand_start.cardnum AS seq_start, cand_end.cardnum AS seq_end
-         FROM candidate_sequencing cand_start INNER JOIN candidate_sequencing cand_end
-        ON cand_start.is_seq_start AND cand_end.is_seq_end AND cand_start.cardnum<=cand_end.cardnum
-          AND cand_start.cardwidth=cand_end.cardwidth AND cand_start.category=cand_end.category),
- possible_moves AS (SELECT seq.category, ip.cardwidth, seq_start, seq_end, ip.cardnum AS insert_seq_before, ip.cardnum>seq_end AS ip_is_after
-  FROM candidate_sequences seq INNER JOIN candidate_insertpoints ip ON (seq.seq_start=ip.cardnum+1 OR seq.seq_end=ip.cardnum-2)
-     AND ip.cardwidth=seq.cardwidth)
-SELECT *, CASE WHEN ip_is_after THEN insert_seq_before-1 ELSE insert_seq_before END AS move_card,
-       CASE WHEN ip_is_after THEN seq_start ELSE seq_end+1 END AS new_loc
-FROM possible_moves
-ORDER BY move_card;
+WITH my_cards AS (SELECT punchcards.*,
+    CAST(SUBSTR(LAG(punchcards.card_digits) OVER(PARTITION BY punchcards.cardwidth ORDER BY punchcards.startid ASC), punchcards.cardwidth) AS INTEGER) AS prev_last,
+    CAST(SUBSTR(punchcards.card_digits, 1, 1) AS INTEGER) AS first_digit,
+    CAST(SUBSTR(punchcards.card_digits, punchcards.cardwidth) AS INTEGER) AS last_digit,
+    CAST(SUBSTR(LEAD(punchcards.card_digits) OVER(PARTITION BY punchcards.cardwidth ORDER BY punchcards.startid ASC), punchcards.cardwidth) AS INTEGER) AS next_first
+     FROM punchcards WHERE startid<50000),
+  insertpoint_cat12 AS (SELECT * FROM my_cards WHERE prev_last=9 AND first_digit=1),
+  insertpoint_cat34 AS (SELECT * FROM my_cards WHERE prev_last=4 AND first_digit=4),
+  insertpoints AS (SELECT 1 AS category, * FROM insertpoint_cat12
+          UNION ALL
+                   SELECT 2 AS category, * FROM insertpoint_cat12
+          UNION ALL
+                   SELECT 3 AS category, * FROM insertpoint_cat34
+          UNION ALL
+                   SELECT 4 AS category, * FROM insertpoint_cat34),
+  breakpoint_cat1 AS (SELECT * FROM my_cards WHERE prev_last=4 AND first_digit=4 AND last_digit=4),
+  breakpoint_cat2 AS (SELECT * FROM my_cards WHERE first_digit=4 AND last_digit=4 AND next_first=4),
+  breakpoint_cat3 AS (SELECT * FROM my_cards WHERE prev_last=9 AND first_digit=1 AND last_digit=4 AND next_first=4),
+  breakpoint_cat4 AS (SELECT * FROM my_cards WHERE prev_last=4 AND first_digit=4 AND last_digit=9 AND next_first=1),
+  breakpoints AS (SELECT 1 AS category, * FROM breakpoint_cat1
+          UNION ALL
+                  SELECT 2 AS category, * FROM breakpoint_cat2
+          UNION ALL
+                  SELECT 3 AS category, * FROM breakpoint_cat3
+          UNION ALL
+                  SELECT 4 AS category, * FROM breakpoint_cat4)
+SELECT ip.category, ip.cardwidth, bp.cardnum AS take_card, ip.cardnum AS insert_before
+  FROM insertpoints ip INNER JOIN breakpoints bp ON bp.category=ip.category AND bp.cardwidth=ip.cardwidth
+  ORDER BY ip.category, ip.cardwidth, bp.cardnum, ip.cardnum;
 
