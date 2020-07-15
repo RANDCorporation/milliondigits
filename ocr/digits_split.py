@@ -4,7 +4,6 @@ import math
 import os
 import statistics
 import numpy as np
-import glob
 from sklearn.cluster import AgglomerativeClustering
 
 
@@ -271,9 +270,10 @@ def main():
         else:
             think_its_good = False
 
-            heuristics = [{"split_ratio": 1.8, "min_width": 5, "min_height": 8},
+            heuristics = [{"split_ratio": 1.5, "min_width": 5, "min_height": 8},
                           {"split_ratio": 1.5, "min_width": 3, "min_height": 6},
-                          {"split_ratio": 1.5, "min_width": 5, "min_height": 8}]
+                          {"split_ratio": 1.2, "min_width": 5, "min_height": 8},
+                          {"split_ratio": 1.8, "min_width": 5, "min_height": 8}]
 
             for heuristic in heuristics:
                 print("Trying rectangle heuristic: {}".format(str(heuristic)))
@@ -319,7 +319,10 @@ def main():
 
         draw_rects(rects, img, os.path.join(step3_dir, "rect_" + basename))
 
-    print("Pages without solutions: {}".format(", ".join(unresolved_pages)))
+    if 0 == len(unresolved_pages):
+        print("Found solutions for all pages in range")
+    else:
+        print("Pages without solutions: {}".format(", ".join(unresolved_pages)))
 
 
 if __name__ == "__main__":
