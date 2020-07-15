@@ -75,11 +75,17 @@ class Rectangle:
 
 def load_and_correct_rectangles(f, f_txt, split_ratio=1.5, min_width=5, min_height=8):
     rects = load_raw_rects(f_txt)
+    print("  Loaded {} raw rectangles".format(len(rects)))
     rects = remove_subrects(rects)
+    print("   {} after subrectangle removal".format(len(rects)))
     rects = remove_headerrects(rects)
+    print("   {} after removing headers".format(len(rects)))
     rects = join_overlaps(rects)
+    print("   {} after joining overlaps".format(len(rects)))
     rects = split_rects(rects, split_ratio)
+    print("   {} after splitting".format(len(rects)))
     rects = filter_tiny_rects(rects, min_width, min_height)
+    print("   {} after removing undersized".format(len(rects)))
 
     return rects
 
@@ -196,6 +202,7 @@ def page_to_digit_range(page):
     low = math.floor((page-row_zero_on_page)*digits_per_page)
     return low+1, low+digits_per_page
 
+
 def rects_to_clusters(rects):
     rects_np = np.array(rects)
     ys = [[r.y, 0] for r in rects]
@@ -212,87 +219,108 @@ def rects_to_clusters(rects):
     return clusters_sorted
 
 
-# 350212	7004	2	1	8	8
-print(digit_num_to_page_x_y(352500))
-print(page_to_digit_range(145))
-print(page_to_digit_range(146))
+def main():
+    # 350212	7004	2	1	8	8
+    # print(digit_num_to_page_x_y(352500))
+    # print(page_to_digit_range(145))
+    # print(page_to_digit_range(146))
 
-step2_dir = "../ocr_orig/step2/"
-step3_dir = "../ocr_orig/step3/"
-digit_dir = "../ocr_orig/digits/"
+    step2_dir = "./step2/"
+    step3_dir = "./step3/"
+    digit_dir = "./digits/"
 
-for d in range(10):
-    if not os.path.exists(digit_dir + str(d)):
-        os.mkdir(digit_dir + str(d))
+    if not os.path.exists(digit_dir):
+        os.mkdir(digit_dir)
 
-# first_digit = 1
-# last_digit = 1000000
-# The error is a single 2 converted to a zero in 350000-400000
-first_digit = 350001
-last_digit = 400000
-min_page = digit_num_to_page_x_y(first_digit)[0]
-max_page = digit_num_to_page_x_y(last_digit)[0]
+    for d in range(10):
+        if not os.path.exists(digit_dir + str(d)):
+            os.mkdir(digit_dir + str(d))
 
-digits_by_id = load_digits("id_digit.csv")
+    # first_digit = 1
+    # last_digit = 1000000
+    # The error is a single 2 converted to a zero in 350000-400000
+    first_digit = 350001
+    last_digit = 400000
+    min_page = digit_num_to_page_x_y(first_digit)[0]
+    max_page = digit_num_to_page_x_y(last_digit)[0]
 
-# imgs = sorted(glob.glob(step2_dir + "*.png"))
-# for img in imgs:
-#    basename = os.path.basename(img)
-for page in range(min_page, max_page+1):
-    basename = 'src-{:03d}.png'.format(page)
-    img = step2_dir + basename
+    digits_by_id = load_digits("id_digit.csv")
 
-    file_txt = os.path.join(step3_dir, basename) + ".txt"
-    rects_pickle = os.path.join(step3_dir, basename) + "_rects.pkl"
-    clusters_pickle = os.path.join(step3_dir, basename) + "_cluster.pkl"
-    rects = []
-    if os.path.exists(rects_pickle):
-        with open(rects_pickle, "rb") as pkl_f:
-            rects = pickle.load(pkl_f)
-    else:
-        heuristics = [{"split_ratio": 1.8, "min_width": 5, "min_height": 8},
-                      {"split_ratio": 1.5, "min_width": 3, "min_height": 6},
-                      {"split_ratio": 1.5, "min_width": 5, "min_height": 8}]
+    unresolved_pages = []
 
-        rects = load_and_correct_rectangles(img, file_txt, **heuristics[0])
+    # imgs = sorted(glob.glob(step2_dir + "*.png"))
+    # for img in imgs:
+    #    basename = os.path.basename(img)
+    for page in range(min_page, max_page+1):
+        basename = 'src-{:03d}.png'.format(page)
+        img = step2_dir + basename
 
-    if rows_per_page >= len(rects):
-        # Sanity check that we're at least looking at a page of digits
-        continue
+        print("{}".format(basename))
 
-    if os.path.exists(clusters_pickle):
-        with open(clusters_pickle, "rb") as pkl_f:
-            clusters_sorted = pickle.load(pkl_f)
-    else:
-        clusters_sorted = rects_to_clusters(rects)
+        file_txt = os.path.join(step3_dir, basename) + ".txt"
+        rects_pickle = os.path.join(step3_dir, basename) + "_rects.pkl"
+        clusters_pickle = os.path.join(step3_dir, basename) + "_cluster.pkl"
+        rects = []
 
-    non_correct_len_rows = [n for n in range(len(clusters_sorted))
-                            if (digits_per_row + row_number_width) != len(clusters_sorted[n])]
+        if os.path.exists(rects_pickle) and os.path.exists(clusters_pickle):
+            with open(rects_pickle, "rb") as pkl_f:
+                rects = pickle.load(pkl_f)
+            with open(clusters_pickle, "rb") as pkl_f:
+                clusters_sorted = pickle.load(pkl_f)
+            think_its_good = True
+        else:
+            think_its_good = False
 
-    think_its_good = (len(rects) == 2750 and 0 == len(non_correct_len_rows))
+            heuristics = [{"split_ratio": 1.8, "min_width": 5, "min_height": 8},
+                          {"split_ratio": 1.5, "min_width": 3, "min_height": 6},
+                          {"split_ratio": 1.5, "min_width": 5, "min_height": 8}]
 
-    print("{} : {} rects {}".format(basename, len(rects), "" if think_its_good else "!"))
+            for heuristic in heuristics:
+                print("Trying rectangle heuristic: {}".format(str(heuristic)))
+                rects = load_and_correct_rectangles(img, file_txt, **heuristic)
+                clusters_sorted = rects_to_clusters(rects)
 
-    if len(non_correct_len_rows) > 0:
-        print("Problems in rows " + ", ".join([str(n) for n in non_correct_len_rows]))
+                non_correct_len_rows = [n for n in range(len(clusters_sorted))
+                                        if (digits_per_row + row_number_width) != len(clusters_sorted[n])]
+                think_its_good = (len(rects) == 2750 and 0 == len(non_correct_len_rows))
 
-    if think_its_good:
-        with open(rects_pickle, "wb") as pkl_f:
-            pickle.dump(rects, pkl_f)
-        with open(clusters_pickle, "wb") as pkl_f:
-            pickle.dump(clusters_sorted, pkl_f)
+                if len(non_correct_len_rows) > 0:
+                    print("Problems in rows " + ", ".join([str(n) for n in non_correct_len_rows]))
 
-        low_digit, high_digit = page_to_digit_range(page)
-        for digit_num in range(low_digit, high_digit+1):
-            p_x_y = digit_num_to_page_x_y(digit_num)
-            this_digit = digits_by_id[digit_num]
-            if True or this_digit == 0 or this_digit == 2:
-                out_file = digit_dir + str(this_digit) + "/" + str(digit_num) + ".png"
-                if not os.path.exists(out_file):
-                    row = clusters_sorted[p_x_y[2]]
-                    rect = row[p_x_y[1]]
-                    extract_rect(rect, img, out_file)
-                # if digit_num == 352500:
-                #     draw_rects([rect], img, "rect_352500.png")
+                if think_its_good:
+                    break
 
-    draw_rects(rects, img, os.path.join(step3_dir, "rect_" + basename))
+        if rows_per_page >= len(rects):
+            print("Doesn't look like a page of digits")
+            continue
+
+        print("{} rects {}".format(len(rects), "" if think_its_good else "!"))
+
+        if not think_its_good:
+            unresolved_pages.append(basename)
+        else:
+            with open(rects_pickle, "wb") as pkl_f:
+                pickle.dump(rects, pkl_f)
+            with open(clusters_pickle, "wb") as pkl_f:
+                pickle.dump(clusters_sorted, pkl_f)
+
+            low_digit, high_digit = page_to_digit_range(page)
+            for digit_num in range(low_digit, high_digit+1):
+                p_x_y = digit_num_to_page_x_y(digit_num)
+                this_digit = digits_by_id[digit_num]
+                if True or this_digit == 0 or this_digit == 2:
+                    out_file = digit_dir + str(this_digit) + "/" + str(digit_num) + ".png"
+                    if not os.path.exists(out_file):
+                        row = clusters_sorted[p_x_y[2]]
+                        rect = row[p_x_y[1]]
+                        extract_rect(rect, img, out_file)
+                    # if digit_num == 352500:
+                    #     draw_rects([rect], img, "rect_352500.png")
+
+        draw_rects(rects, img, os.path.join(step3_dir, "rect_" + basename))
+
+    print("Pages without solutions: {}".format(", ".join(unresolved_pages)))
+
+
+if __name__ == "__main__":
+    main()
