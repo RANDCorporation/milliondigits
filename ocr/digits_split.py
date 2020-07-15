@@ -196,15 +196,30 @@ def page_to_digit_range(page):
     low = math.floor((page-row_zero_on_page)*digits_per_page)
     return low+1, low+digits_per_page
 
+def rects_to_clusters(rects):
+    rects_np = np.array(rects)
+    ys = [[r.y, 0] for r in rects]
+
+    clustering = AgglomerativeClustering(n_clusters=rows_per_page).fit(ys)
+
+    clusters_sorted = []
+    for cluster in range(rows_per_page):
+        this_cluster = (clustering.labels_ == cluster)
+        these_rects = rects_np[clustering.labels_ == cluster]
+        these_rects = sorted(these_rects, key=lambda r: r.x)
+        clusters_sorted.append(these_rects)
+    clusters_sorted.sort(key=lambda c: c[0].y)
+    return clusters_sorted
+
 
 # 350212	7004	2	1	8	8
 print(digit_num_to_page_x_y(352500))
 print(page_to_digit_range(145))
 print(page_to_digit_range(146))
 
-step2_dir = "../ocr/step2/"
-step3_dir = "../ocr/step3/"
-digit_dir = "../ocr/digits/"
+step2_dir = "../ocr_orig/step2/"
+step3_dir = "../ocr_orig/step3/"
+digit_dir = "../ocr_orig/digits/"
 
 for d in range(10):
     if not os.path.exists(digit_dir + str(d)):
@@ -212,6 +227,7 @@ for d in range(10):
 
 # first_digit = 1
 # last_digit = 1000000
+# The error is a single 2 converted to a zero in 350000-400000
 first_digit = 350001
 last_digit = 400000
 min_page = digit_num_to_page_x_y(first_digit)[0]
@@ -225,37 +241,33 @@ digits_by_id = load_digits("id_digit.csv")
 for page in range(min_page, max_page+1):
     basename = 'src-{:03d}.png'.format(page)
     img = step2_dir + basename
-    in_interest_area = False
-    if 'src-145.png' <= basename <= 'src-164.png':
-        in_interest_area = True
 
     file_txt = os.path.join(step3_dir, basename) + ".txt"
-    rects_pickle = os.path.join(step3_dir, basename) + ".pkl"
+    rects_pickle = os.path.join(step3_dir, basename) + "_rects.pkl"
+    clusters_pickle = os.path.join(step3_dir, basename) + "_cluster.pkl"
     rects = []
     if os.path.exists(rects_pickle):
         with open(rects_pickle, "rb") as pkl_f:
             rects = pickle.load(pkl_f)
     else:
-        rects = load_and_correct_rectangles(img, file_txt, split_ratio=1.5, min_width=5, min_height=8)
+        heuristics = [{"split_ratio": 1.8, "min_width": 5, "min_height": 8},
+                      {"split_ratio": 1.5, "min_width": 3, "min_height": 6},
+                      {"split_ratio": 1.5, "min_width": 5, "min_height": 8}]
 
-    rects_np = np.array(rects)
-    ys = [[r.y, 0] for r in rects]
+        rects = load_and_correct_rectangles(img, file_txt, **heuristics[0])
 
     if rows_per_page >= len(rects):
         # Sanity check that we're at least looking at a page of digits
         continue
 
-    clustering = AgglomerativeClustering(n_clusters=rows_per_page).fit(ys)
+    if os.path.exists(clusters_pickle):
+        with open(clusters_pickle, "rb") as pkl_f:
+            clusters_sorted = pickle.load(pkl_f)
+    else:
+        clusters_sorted = rects_to_clusters(rects)
 
-    clusters_sorted = []
-    for cluster in range(rows_per_page):
-        this_cluster = (clustering.labels_ == cluster)
-        these_rects = rects_np[clustering.labels_ == cluster]
-        these_rects = sorted(these_rects, key=lambda r: r.x)
-        clusters_sorted.append(these_rects)
-    clusters_sorted.sort(key=lambda c: c[0].y)
-
-    non_correct_len_rows = [n for n in range(len(clusters_sorted)) if 55 != len(clusters_sorted[n])]
+    non_correct_len_rows = [n for n in range(len(clusters_sorted))
+                            if (digits_per_row + row_number_width) != len(clusters_sorted[n])]
 
     think_its_good = (len(rects) == 2750 and 0 == len(non_correct_len_rows))
 
@@ -267,6 +279,8 @@ for page in range(min_page, max_page+1):
     if think_its_good:
         with open(rects_pickle, "wb") as pkl_f:
             pickle.dump(rects, pkl_f)
+        with open(clusters_pickle, "wb") as pkl_f:
+            pickle.dump(clusters_sorted, pkl_f)
 
         low_digit, high_digit = page_to_digit_range(page)
         for digit_num in range(low_digit, high_digit+1):
@@ -274,10 +288,11 @@ for page in range(min_page, max_page+1):
             this_digit = digits_by_id[digit_num]
             if True or this_digit == 0 or this_digit == 2:
                 out_file = digit_dir + str(this_digit) + "/" + str(digit_num) + ".png"
-                row = clusters_sorted[p_x_y[2]]
-                rect = row[p_x_y[1]]
-                extract_rect(rect, img, out_file)
-                if digit_num == 352500:
-                    draw_rects([rect], img, "rect_352500.png")
+                if not os.path.exists(out_file):
+                    row = clusters_sorted[p_x_y[2]]
+                    rect = row[p_x_y[1]]
+                    extract_rect(rect, img, out_file)
+                # if digit_num == 352500:
+                #     draw_rects([rect], img, "rect_352500.png")
 
     draw_rects(rects, img, os.path.join(step3_dir, "rect_" + basename))
