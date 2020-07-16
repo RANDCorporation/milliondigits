@@ -21,6 +21,6 @@ do
 		folder="${mont_fldr}/${idx}"
 		mkdir -p ${folder}
 		ls -1 ${mont_fldr} | grep png | head -1024 | xargs --replace={} mv ${mont_fldr}/{} ${folder}
-		montage -geometry +0+0 ${folder}/*.png montage/${digit}_${idx}.png
+		montage -tile 32x -geometry +0+0 ${folder}/*.png montage/${digit}_${idx}.png
 	done
 done
