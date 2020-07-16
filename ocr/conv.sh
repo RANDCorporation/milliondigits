@@ -2,15 +2,29 @@
 
 # Download https://www.rand.org/content/dam/rand/pubs/monograph_reports/MR1418/MR1418.digits.pdf
 
+pdffile=MR1418.digits.pdf
+if test ! -e ${pdffile}
+then
+	echo "Download to this folder https://www.rand.org/content/dam/rand/pubs/monograph_reports/MR1418/MR1418.digits.pdf"
+	exit 1
+fi
+
+dbname=milliondigits.sqlite
+if test ! -e ../${dbname}
+then
+	echo "Recreating sqlite database"
+	(cd ..; sqlite3 ${dbname} < import.sql)
+fi
+
 # The python code reads this file to decide where to create digits
 echo "Creating map of id to digit"
-test -e id_digit.csv || sqlite3 -csv ../milliondigits.sqlite "SELECT id, digit FROM digits;" > ./id_digit.csv
+test -e id_digit.csv || sqlite3 -csv ../${dbname} "SELECT id, digit FROM digits;" > ./id_digit.csv
 
 echo "Extracting PDF pages to images"
 mkdir -p step1
 # Extract all pdf pages as images
-# test -e step1/src-145.png || pdfimages -png MR1418.digits.pdf step1/src
-test -e step1/src-145.png || pdftoppm -png MR1418.digits.pdf step1/src
+# test -e step1/src-145.png || pdfimages -png ${pdffile} step1/src
+test -e step1/src-145.png || pdftoppm -png ${pdffile} step1/src
 
 echo "Doing a first-pass conversion of images to get them into the ballpark"
 mkdir -p step2

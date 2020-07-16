@@ -6,6 +6,17 @@ import statistics
 import numpy as np
 from sklearn.cluster import AgglomerativeClustering
 
+# "page" like "n'th sheet of paper", not "page" like "number in top of page"
+row_zero_on_page = 5
+rows_per_page = 50
+digits_per_row = 50
+row_number_width = 5
+digits_per_page = digits_per_row * rows_per_page
+
+step2_dir = "./step2/"
+step3_dir = "./step3/"
+digit_dir = "./digits/"
+
 
 class Rectangle:
     def __init__(self, id, x, y, w, h):
@@ -74,6 +85,8 @@ class Rectangle:
 
 def load_and_correct_rectangles(f, f_txt, split_ratio=1.5, min_width=5, min_height=8):
     rects = load_raw_rects(f_txt)
+    f_out = os.path.join(step3_dir, "rect_unfiltered_" + os.path.basename(f))
+    draw_rects(rects, f, f_out)
     print("  Loaded {} raw rectangles".format(len(rects)))
     rects = remove_subrects(rects)
     print("   {} after subrectangle removal".format(len(rects)))
@@ -171,6 +184,7 @@ def load_digits(f_csv):
 def draw_rects(rects, in_png, out_png):
     convertstr = "convert " + in_png + " -fill none -stroke red -strokewidth 0.5 " + \
                  " ".join([r.magick_draw() for r in rects]) + " " + out_png
+    # print(convertstr)
     os.system(convertstr)
 
 
@@ -178,13 +192,6 @@ def extract_rect(rect, in_png, out_png):
     convertstr = "convert " + in_png + " " + rect.magick_crop() + " -gravity center -extent 17x22 " + out_png
     os.system(convertstr)
 
-
-# "page" like "n'th sheet of paper", not "page" like "number in top of page"
-row_zero_on_page = 5
-rows_per_page = 50
-digits_per_row = 50
-row_number_width = 5
-digits_per_page = digits_per_row * rows_per_page
 
 
 def digit_num_to_page_x_y(digitnum_1offset):
@@ -223,10 +230,6 @@ def main():
     # print(digit_num_to_page_x_y(352500))
     # print(page_to_digit_range(145))
     # print(page_to_digit_range(146))
-
-    step2_dir = "./step2/"
-    step3_dir = "./step3/"
-    digit_dir = "./digits/"
 
     if not os.path.exists(digit_dir):
         os.mkdir(digit_dir)
