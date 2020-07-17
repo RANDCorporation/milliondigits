@@ -18,11 +18,12 @@ END;
 INSERT INTO punchcard_widths (width, description) VALUES
  -- (40, 'IBM Port-a-Punch'),
  (80, 'Standard IBM card'),
- (72, 'FORTRAN'),
+ (72, 'FORTRAN')
  -- (90, 'Remington Rand Double 45'),
  -- (96, 'IBM 96-column [post-1955]'),
- (160, 'Double-coded Standard IBM card'),
- (144, 'Double-coded FORTRAN');
+ -- (160, 'Double-coded Standard IBM card'),
+ -- (144, 'Double-coded FORTRAN')
+;
 
 ANALYZE;
 
@@ -139,4 +140,39 @@ WITH my_cards AS (SELECT punchcards.*,
 SELECT ip.category, ip.cardwidth, bp.cardnum AS take_card, ip.cardnum AS insert_before
   FROM insertpoints ip INNER JOIN breakpoints bp ON bp.category=ip.category AND bp.cardwidth=ip.cardwidth
   ORDER BY ip.category, ip.cardwidth, bp.cardnum, ip.cardnum;
+
+
+-- Criminially naive and is the slowest SQL query I've ever written
+CREATE VIEW sequence_move_one_card_digits AS WITH RECURSIVE
+     -- Calculate the new order of the deck for all cards, in the sequence_move_one_card world
+     -- Read as "The card at cardnum in the newly ordered deck is the card that was previously at new_cardnum"
+     reordercards AS (SELECT pm.cardwidth AS cardwidth, take_card, insert_before, startid, endid, cardnum,
+       CASE WHEN (take_card>insert_before) THEN (
+           CASE
+               WHEN cardnum=insert_before THEN take_card
+               WHEN cardnum<=take_card AND cardnum>insert_before THEN cardnum-1
+               ELSE cardnum END
+           )
+        ELSE (
+           CASE
+               WHEN cardnum=insert_before THEN take_card
+               WHEN cardnum>=take_card AND cardnum<insert_before THEN cardnum+1
+               ELSE cardnum END
+           ) END AS new_cardnum
+     FROM sequence_move_one_card pm INNER JOIN punchcard_ranges pr ON pr.cardwidth=pm.cardwidth),
+  -- Join the previous CTE to itself to get the digit ranges
+ reordered_cards AS (SELECT ro_orig.*, ro_new.startid AS newstartid, ro_new.endid AS newendid
+   FROM reordercards ro_orig
+   INNER JOIN reordercards ro_new ON
+       ro_new.cardwidth=ro_orig.cardwidth AND ro_new.take_card=ro_orig.take_card
+       AND ro_new.insert_before=ro_orig.insert_before AND ro_new.cardnum=ro_orig.new_cardnum),
+  -- Bring in all the actual digits and renumber them
+ reordered_digits AS (SELECT ro.*, digits.id AS digitid, digits.digit,
+       ROW_NUMBER() OVER (PARTITION BY cardwidth, take_card, insert_before ORDER BY cardnum, digits.id) AS new_digit_id
+   FROM reordered_cards ro
+    INNER JOIN digits ON newstartid<=digits.id AND newendid>=digits.id
+    WHERE digits.id<=50000)
+SELECT * FROM reordered_digits
+    ORDER BY cardwidth, take_card, insert_before, new_digit_id;
+
 
