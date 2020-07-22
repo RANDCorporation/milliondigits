@@ -17,10 +17,15 @@ END;
 -- Only include likely candidates for the million original digits
 INSERT INTO punchcard_widths (width, description) VALUES
  -- (40, 'IBM Port-a-Punch'),
+ (50, 'Apparent real source'),
  (80, 'Standard IBM card'),
+ -- (74, 'Not quite 75'),
+ -- (76, 'Seventy Six'),
+ -- (73, 'Seventy Three'),
  (72, 'FORTRAN')
+ -- (92, 'Ninety Two'),
  -- (90, 'Remington Rand Double 45'),
- -- (96, 'IBM 96-column [post-1955]'),
+ -- (96, 'IBM 96-column [post-1955]')
  -- (160, 'Double-coded Standard IBM card'),
  -- (144, 'Double-coded FORTRAN')
 ;
@@ -171,8 +176,64 @@ CREATE VIEW sequence_move_one_card_digits AS WITH RECURSIVE
        ROW_NUMBER() OVER (PARTITION BY cardwidth, take_card, insert_before ORDER BY cardnum, digits.id) AS new_digit_id
    FROM reordered_cards ro
     INNER JOIN digits ON newstartid<=digits.id AND newendid>=digits.id
-    WHERE digits.id<=50000)
+    -- WHERE digits.id<=50000
+)
 SELECT * FROM reordered_digits
     ORDER BY cardwidth, take_card, insert_before, new_digit_id;
 
+
+-- It's not speedy.
+--  Materialise sequence_move_one_card_digits and change this query if you actually want to run it
+CREATE VIEW IF NOT EXISTS punchcards_seq_poker_compare AS
+WITH
+ count_each_digit AS
+     (SELECT take_card, insert_before, cardwidth, (new_digit_id-1)/5 AS id, digit, COUNT(*) AS cnt, GROUP_CONCAT(digit) AS cards
+     FROM sequence_move_one_card_digits GROUP BY take_card, insert_before, cardwidth, (new_digit_id-1)/5, digit),
+ bust(hand, take_card, insert_before, cardwidth, id, cards) AS
+     (SELECT 'bust', take_card, insert_before, cardwidth, (new_digit_id-1)/5, GROUP_CONCAT(digit) AS cards
+       FROM sequence_move_one_card_digits GROUP BY take_card, insert_before, cardwidth, (new_digit_id-1)/5
+       HAVING COUNT(DISTINCT digit)=5),
+ pair(hand, take_card, insert_before, cardwidth, id, cards) AS
+     (SELECT 'pair', take_card, insert_before, cardwidth, (new_digit_id-1)/5, GROUP_CONCAT(digit) AS cards
+       FROM sequence_move_one_card_digits GROUP BY take_card, insert_before, cardwidth, (new_digit_id-1)/5
+       HAVING COUNT(DISTINCT digit)=4),
+ twopair(hand, take_card, insert_before, cardwidth, id, cards) AS
+     (SELECT 'twopair', take_card, insert_before, cardwidth, id, GROUP_CONCAT(cards) AS cards
+       FROM count_each_digit GROUP BY take_card, insert_before, cardwidth, id
+       HAVING SUM(CASE WHEN 2=cnt THEN 1 ELSE 0 END)=2),
+ three(hand, take_card, insert_before, cardwidth, id, cards) AS
+     (SELECT 'three', take_card, insert_before, cardwidth, id, GROUP_CONCAT(cards) AS cards
+       FROM count_each_digit GROUP BY take_card, insert_before, cardwidth, id
+       HAVING MAX(cnt)=3 AND COUNT(DISTINCT digit)=3),
+ fullhouse(hand, take_card, insert_before, cardwidth, id, cards) AS
+     (SELECT 'fullhouse', take_card, insert_before, cardwidth, id, GROUP_CONCAT(cards) AS cards
+       FROM count_each_digit GROUP BY take_card, insert_before, cardwidth, id
+       HAVING MAX(cnt)=3 AND MIN(cnt)=2),
+ four(hand, take_card, insert_before, cardwidth, id, cards) AS
+     (SELECT 'four', take_card, insert_before, cardwidth, id, GROUP_CONCAT(cards) AS cards
+       FROM count_each_digit GROUP BY take_card, insert_before, cardwidth, id
+       HAVING MAX(cnt)=4),
+ five(hand, take_card, insert_before, cardwidth, id, cards) AS
+     (SELECT 'five', take_card, insert_before, cardwidth, (new_digit_id-1)/5, GROUP_CONCAT(digit) AS cards
+       FROM sequence_move_one_card_digits GROUP BY take_card, insert_before, cardwidth, (new_digit_id-1)/5
+       HAVING COUNT(DISTINCT digit)=1),
+     allhands_cnt AS (
+         SELECT hand, take_card, insert_before, cardwidth, COUNT(*) AS cnt FROM bust GROUP BY take_card, hand, insert_before, cardwidth
+         UNION ALL
+         SELECT hand, take_card, insert_before, cardwidth, COUNT(*) AS cnt FROM pair GROUP BY take_card, hand, insert_before, cardwidth
+         UNION ALL
+         SELECT hand, take_card, insert_before, cardwidth, COUNT(*) AS cnt FROM twopair GROUP BY take_card, hand, insert_before, cardwidth
+         UNION ALL
+         SELECT hand, take_card, insert_before, cardwidth, COUNT(*) AS cnt FROM three GROUP BY take_card, hand, insert_before, cardwidth
+         UNION ALL
+         SELECT hand, take_card, insert_before, cardwidth, COUNT(*) AS cnt FROM fullhouse GROUP BY take_card, hand, insert_before, cardwidth
+         UNION ALL
+         SELECT hand, take_card, insert_before, cardwidth, COUNT(*) AS cnt FROM four GROUP BY take_card, hand, insert_before, cardwidth
+         UNION ALL
+         SELECT hand, take_card, insert_before, cardwidth, COUNT(*) AS cnt FROM five GROUP BY take_card, hand, insert_before, cardwidth)
+SELECT allhands_cnt.*,
+       mr1418_poker_total.expected_cnt AS expected, mr1418_poker_total.cnt AS orig_cnt,
+       allhands_cnt.cnt-mr1418_poker_total.cnt AS delta, abs(allhands_cnt.cnt-mr1418_poker_total.cnt) AS abs_delta
+  FROM allhands_cnt INNER JOIN mr1418_poker_total ON mr1418_poker_total.hand=allhands_cnt.hand
+   ORDER BY cardwidth, take_card, insert_before, hand;
 

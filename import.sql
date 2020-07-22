@@ -260,6 +260,6 @@ WITH RECURSIVE runs(start, d, runlen) AS (SELECT id, digit, 1 FROM digits WHERE 
     SELECT runlen, COUNT(*) AS cnt FROM longestrun_bystart
     GROUP BY runlen ORDER BY runlen ASC;
 
-.read "punchcards.sql"
 .read "original_results.sql"
+.read "punchcards.sql"
 
