@@ -3,6 +3,9 @@ CREATE TABLE IF NOT EXISTS digits_row (id INTEGER PRIMARY KEY, rownum INTEGER NO
 CREATE TABLE IF NOT EXISTS digits_tuples (id INTEGER PRIMARY KEY, rownum INTEGER NOT NULL, colnum INTEGER NOT NULL, val INTEGER, t TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS digits (id INTEGER PRIMARY KEY, rownum INTEGER NOT NULL, colnum INTEGER NOT NULL, colidx INTEGER, digit INTEGER, t TEXT NOT NULL);
 
+CREATE TABLE IF NOT EXISTS view_description
+  (view_name TEXT NOT NULL, long_name TEXT NOT NULL, description TEXT NOT NULL, UNIQUE(view_name));
+
 CREATE VIEW IF NOT EXISTS digits_insview AS SELECT 'nothing' AS record;
 CREATE TRIGGER IF NOT EXISTS trig_digits_insview INSTEAD OF INSERT ON digits_insview FOR EACH ROW BEGIN
   INSERT OR IGNORE INTO digits_row (rownum, page, orig_rowtext, rowtext) VALUES

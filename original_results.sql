@@ -1,6 +1,3 @@
-CREATE TABLE IF NOT EXISTS view_description
-  (view_name TEXT NOT NULL, long_name TEXT NOT NULL, description TEXT NOT NULL, UNIQUE(view_name));
-
 -- Table 1 "Frequencies of One Million Digits"
 CREATE TABLE IF NOT EXISTS mr1418_freqs (blocknum INTEGER NOT NULL, digit INTEGER NOT NULL, cnt INTEGER NOT NULL, UNIQUE(blocknum, digit));
 INSERT OR IGNORE INTO mr1418_freqs (blocknum, digit, cnt) VALUES

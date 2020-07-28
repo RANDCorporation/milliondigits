@@ -32,6 +32,10 @@ INSERT INTO punchcard_widths (width, description) VALUES
 
 ANALYZE;
 
+INSERT OR IGNORE INTO view_description (view_name, long_name, description) VALUES
+  ('punchcards', 'Simulated Punchcards',
+   'For each possible punchcard width, simulate what all the punchcards would have looked like');
+
 CREATE VIEW IF NOT EXISTS punchcards AS
 WITH RECURSIVE digits_iter(startid, endid, cardnum, cardwidth, card_digits, len) AS
     (SELECT startid, endid, cardnum, cardwidth, digit, 1
@@ -52,6 +56,10 @@ SELECT * FROM cards;
 -- There's a parallel version where the change is at the start of a card,
 --   but overall "switch two cards and everything else is the same" is
 --   vanishingly unlikely compared to the next approach.
+
+INSERT OR IGNORE INTO view_description (view_name, long_name, description) VALUES
+  ('sequence_switch_cards', 'Switched pairs of cards for sequencing',
+   'For all the simulated punchcards, look for sample solutions to the sequence-of-two-digits question by switching two cards');
 
 CREATE VIEW sequence_switch_cards AS
 WITH pc_50k AS (SELECT * FROM punchcards WHERE endid<=50000),
@@ -114,6 +122,9 @@ ORDER BY card1;
 --                   xxxx4 4xxxx
 -- 44 91 44 becomes 41 44 94
 
+INSERT OR IGNORE INTO view_description (view_name, long_name, description) VALUES
+  ('sequence_move_one_card', 'Single moved cards of cards for sequencing',
+   'For all the simulated punchcards, look for sample solutions to the sequence-of-two-digits question by having a single card out of place');
 
 CREATE VIEW sequence_move_one_card AS
 WITH my_cards AS (SELECT punchcards.*,
@@ -146,6 +157,10 @@ SELECT ip.category, ip.cardwidth, bp.cardnum AS take_card, ip.cardnum AS insert_
   FROM insertpoints ip INNER JOIN breakpoints bp ON bp.category=ip.category AND bp.cardwidth=ip.cardwidth
   ORDER BY ip.category, ip.cardwidth, bp.cardnum, ip.cardnum;
 
+
+INSERT OR IGNORE INTO view_description (view_name, long_name, description) VALUES
+  ('sequence_move_one_card_digits', 'Digits of cards moved according to single-card-out-of-place above',
+   'Re-simulate the punch deck with the reordered cards from sequence_move_one_card');
 
 -- Criminially naive and is the slowest SQL query I've ever written
 CREATE VIEW sequence_move_one_card_digits AS WITH RECURSIVE
@@ -181,6 +196,10 @@ CREATE VIEW sequence_move_one_card_digits AS WITH RECURSIVE
 SELECT * FROM reordered_digits
     ORDER BY cardwidth, take_card, insert_before, new_digit_id;
 
+
+INSERT OR IGNORE INTO view_description (view_name, long_name, description) VALUES
+  ('punchcards_seq_poker_compare', 'Poker with re-simulated punchcards',
+   'For the re-simulated punchcard deck, count up poker solutions');
 
 -- It's not speedy.
 --  Materialise sequence_move_one_card_digits and change this query if you actually want to run it
@@ -236,4 +255,56 @@ SELECT allhands_cnt.*,
        allhands_cnt.cnt-mr1418_poker_total.cnt AS delta, abs(allhands_cnt.cnt-mr1418_poker_total.cnt) AS abs_delta
   FROM allhands_cnt INNER JOIN mr1418_poker_total ON mr1418_poker_total.hand=allhands_cnt.hand
    ORDER BY cardwidth, take_card, insert_before, hand;
+
+
+
+INSERT OR IGNORE INTO view_description (view_name, long_name, description) VALUES
+  ('punchcards_seq_runs_compare', 'Runs with re-simulated punchcards',
+   'For the re-simulated punchcard deck, count up runs');
+
+-- It's not speedy.
+--  Materialise sequence_move_one_card_digits and change this query if you actually want to run it
+CREATE VIEW IF NOT EXISTS punchcards_seq_runs_compare AS
+WITH runs AS (SELECT cardwidth, take_card, insert_before, new_digit_id, digit, new_digit_id AS start, 1 AS runlen
+          FROM sequence_move_one_card_digits s WHERE new_digit_id=1
+      UNION ALL
+       SELECT s.cardwidth, s.take_card, s.insert_before, s.new_digit_id, s.digit,
+              CASE WHEN s.digit=r.digit THEN start ELSE s.new_digit_id END,
+              CASE WHEN s.digit=r.digit THEN runlen+1 ELSE 1 END
+            FROM sequence_move_one_card_digits s INNER JOIN runs r ON s.new_digit_id=r.new_digit_id+1
+                AND r.cardwidth=s.cardwidth AND r.take_card=s.take_card AND r.insert_before=s.insert_before
+            WHERE s.new_digit_id<=50000),
+     longestrun_bystart AS (SELECT cardwidth, take_card, insert_before, digit, start, MAX(runlen) AS runlen FROM runs
+                GROUP BY cardwidth, take_card, insert_before, digit, start
+     ),
+     runcounts AS (SELECT cardwidth, take_card, insert_before, runlen, COUNT(*) AS cnt FROM longestrun_bystart
+        GROUP BY cardwidth, take_card, insert_before, runlen)
+SELECT runcounts.*, mr1418_runs.expected_cnt, mr1418_runs.cnt, (runcounts.cnt-mr1418_runs.cnt) AS delta
+   FROM runcounts INNER JOIN mr1418_runs ON mr1418_runs.runlen=runcounts.runlen;
+
+
+INSERT OR IGNORE INTO view_description (view_name, long_name, description) VALUES
+   ('punchcard_endruns', 'Runs of digits at start and ends of cards',
+	'Count parts of runs at the start and end of each card');
+
+CREATE VIEW IF NOT EXISTS punchcard_endruns AS
+WITH punchcard_ends AS (SELECT cardwidth, cardnum, startid, endid, digit, 1 AS len FROM punchcard_ranges
+        INNER JOIN digits ON digits.id=endid WHERE endid<=50000
+    UNION ALL
+       SELECT cardwidth, cardnum, startid, endid, punchcard_ends.digit, len+1 FROM punchcard_ends
+        INNER JOIN digits ON digits.id=endid-len AND digits.digit=punchcard_ends.digit),
+ punchcard_starts AS (SELECT cardwidth, cardnum, startid, endid, digit, 1 AS len FROM punchcard_ranges
+        INNER JOIN digits ON digits.id=startid WHERE endid<=50000
+    UNION ALL
+       SELECT cardwidth, cardnum, startid, endid, punchcard_starts.digit, len+1 FROM punchcard_starts
+        INNER JOIN digits ON digits.id=startid+len AND digits.digit=punchcard_starts.digit
+        ),
+ punchcard_edges AS (
+       SELECT s.cardwidth, s.cardnum,
+                MIN(s.digit) AS start_digit, MAX(s.len) AS start_len,
+                MIN(e.digit) AS end_digit, MAX(e.len) AS end_len
+         FROM punchcard_starts s INNER JOIN punchcard_ends e ON s.cardnum=e.cardnum AND s.cardwidth=e.cardwidth
+            GROUP BY s.cardwidth, s.cardnum
+    )
+SELECT * FROM punchcard_edges;
 
