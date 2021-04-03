@@ -1,3 +1,6 @@
+-- Explore a bunch of experiments to see if some of the differences
+--   in my analysis vs the original could be attributed to a punchcard deck
+--   being out of order.
 
 -- How could we switch two cards to fix the sequencing error?
 -- Find two cards with the same first digit
