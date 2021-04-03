@@ -1,4 +1,3 @@
-milliondigits.sqlite
-checks.sqlite
+*.sqlite
 milliondigits_checks.html
 /MDSearch/target/
