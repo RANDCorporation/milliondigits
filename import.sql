@@ -131,4 +131,5 @@ SELECT b_label AS x,
 
 .read "reproduce_results.sql"
 .read "results_compare_original.sql"
+.read "punchcard_experiments.sql"
 
