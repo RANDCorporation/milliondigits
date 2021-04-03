@@ -1,3 +1,6 @@
+-- This file creates and populates tables containing all the data in the original analysis
+
+
 -- Table 1 "Frequencies of One Million Digits"
 CREATE TABLE IF NOT EXISTS mr1418_freqs (blocknum INTEGER NOT NULL, digit INTEGER NOT NULL, cnt INTEGER NOT NULL, UNIQUE(blocknum, digit));
 INSERT OR IGNORE INTO mr1418_freqs (blocknum, digit, cnt) VALUES
@@ -108,4 +111,6 @@ CREATE TABLE IF NOT EXISTS mr1418_runs (runlen INTEGER NOT NULL, expected_cnt RE
 INSERT OR IGNORE INTO mr1418_runs (runlen, expected_cnt, cnt) 
    VALUES (1, 40500, 40410), (2, 4050, 4055), (3, 405, 421), (4, 40.5, 48), (5, 4.5, 5);
 
+
+ANALYZE;
 

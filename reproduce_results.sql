@@ -1,3 +1,5 @@
+-- Recreations of the original analysis
+
 
 -- Chi-squared calculation on blocks of fifty thousand digits
 CREATE VIEW IF NOT EXISTS digit_freqs_50k AS

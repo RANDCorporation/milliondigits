@@ -1,3 +1,7 @@
+-- Comparing our results against the original results
+
+-- SQLite lacks PIVOT(). So, many of these have a "precursor" view that
+--   is the "long" variant on the results, followed by an ugly manual pivot
 
 CREATE VIEW IF NOT EXISTS precursor_check_freq AS
 SELECT mr1418_freqs.blocknum, mr1418_freqs.digit, digit_freqs_50k.expected,
@@ -7,7 +11,6 @@ SELECT mr1418_freqs.blocknum, mr1418_freqs.digit, digit_freqs_50k.expected,
     AND mr1418_freqs.digit=digit_freqs_50k.digit;
 
 
--- SQLite lacks PIVOT()
 INSERT OR IGNORE INTO view_description (view_name, long_name, description) VALUES
   ('check_freq', 'Table 1: Frequencies of One Million Digits',
    'In 20 blocks of 50k digits, frequencies of each digit');
