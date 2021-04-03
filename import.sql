@@ -88,6 +88,10 @@ ANALYZE;
 
 -- To look for strings of numbers: Insert the search string into searchvals,
 --   then SELECT from dosearch
+INSERT OR IGNORE INTO view_description (view_name, long_name, description) VALUES
+  ('dosearch', 'Search for strings of digits',
+   'Insert strings of digits into the searchvals table, then select * from dosearch to search for them');
+
 CREATE TABLE IF NOT EXISTS searchvals (searchval TEXT NOT NULL, UNIQUE(searchval));
 CREATE VIEW IF NOT EXISTS dosearch AS
 WITH RECURSIVE q(q) AS (SELECT searchval FROM searchvals), 
@@ -108,6 +112,10 @@ SELECT * FROM (
   ORDER BY matchlen DESC;
 
 -- Render a poor man's historgram of the normal deviates
+INSERT OR IGNORE INTO view_description (view_name, long_name, description) VALUES
+  ('deviates_hist', 'Histogram of the normal deviates',
+   'Draw a simple histogram of the normal deviates');
+
 CREATE VIEW IF NOT EXISTS deviates_hist AS
 WITH params(max_bar_length, bucket_width) AS (SELECT 80, 0.2),
  createbar(b) AS (SELECT '#' UNION ALL SELECT b || '#' FROM createbar, params WHERE LENGTH(b)<=max_bar_length),
@@ -129,7 +137,8 @@ SELECT b_label AS x,
 .read "punchcards.sql"
 .read "original_results.sql"
 
-.read "reproduce_results.sql"
+-- ANALYSIS BEGINS HERE
+.read "reproduce_results.sql" 
 .read "results_compare_original.sql"
 .read "punchcard_experiments.sql"
 
