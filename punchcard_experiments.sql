@@ -262,3 +262,17 @@ WITH punchcard_ends AS (SELECT cardwidth, cardnum, startid, endid, digit, 1 AS l
     )
 SELECT * FROM punchcard_edges;
 
+
+-- Looking for existence of long runs on boundaries between cards
+INSERT OR IGNORE INTO view_description (view_name, long_name, description) VALUES
+   ('punchcard_long_endruns', 'Long runs of digits on punchcard boundaries',
+        'Look for possibly really long runs on the boundaries between cards');
+
+CREATE VIEW IF NOT EXISTS punchcard_long_endruns AS
+SELECT L.cardwidth, L.end_len+R.start_len AS boundarylen, COUNT(*) AS cnt
+   FROM punchcard_endruns L INNER JOIN punchcard_endruns R
+    ON L.cardwidth=R.cardwidth AND L.end_digit=R.start_digit AND L.cardnum!=R.cardnum
+      AND L.end_len+R.start_len BETWEEN 3 AND 7
+  GROUP BY L.cardwidth, boundarylen
+   ORDER BY boundarylen DESC;
+
