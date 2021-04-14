@@ -7,8 +7,11 @@ package org.rand.mdsearch;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.net.URL;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -21,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.imageio.ImageIO;
 import javax.swing.DefaultListModel;
 import javax.swing.JOptionPane;
 import javax.swing.ListModel;
@@ -51,6 +55,17 @@ public class MDSearchForm extends javax.swing.JFrame {
 
         initComponents();
        
+        try {
+            URL logorsc = Thread.currentThread().getContextClassLoader().getResource("randlogo.gif");
+            if(null != logorsc) {
+                BufferedImage icon = ImageIO.read(logorsc);
+                this.setIconImage(icon);
+            }
+        } catch(IOException ex) {
+            // Silently swallow. Only for iconimage
+        }
+        
+        
         DefaultListModel<String> encodingListModel = new DefaultListModel<>();
         // Cp1047 => EBCDIC
         String encodings[] = new String[] { "US-ASCII", "Cp1047", "UTF-16" };
@@ -135,6 +150,7 @@ public class MDSearchForm extends javax.swing.JFrame {
             try {
                 if(!new File(dbFileName).exists()) {
                     JOptionPane.showMessageDialog(this, "Error: File " + dbFileName + " not found");
+                    return;
                 } else {
                     conn = connectDb();
                 }
