@@ -83,13 +83,19 @@ FROM poker;
 -- Divide numbers up into ten blocks, then do variance and mean on the poker values
 CREATE VIEW IF NOT EXISTS poker_variance AS
 WITH params AS (SELECT 10 AS num_blocks, COUNT(*) AS num_rows FROM digits_row),
-    hands_per_block AS (SELECT rownum/(num_rows/num_blocks) AS blocknum, hand,
-       CAST(COUNT(*) AS REAL) AS cnt,
-       AVG(COUNT(*)) OVER (PARTITION BY hand) AS mean,
-       COUNT(*)-AVG(COUNT(*)) OVER (PARTITION BY hand) AS difference
-        FROM params, poker GROUP BY hand, rownum/(num_rows/num_blocks))
+     all_blocknums AS (SELECT DISTINCT rownum/(num_rows/num_blocks) AS blocknum
+         FROM params, poker),
+     all_hands_blocknums AS (SELECT hand, blocknum FROM mr1418_poker_total, all_blocknums),
+    hands_per_block AS (SELECT h_b.blocknum AS blocknum, h_b.hand,
+       CAST(COUNT(poker.hand) AS REAL) AS cnt,
+       AVG(COUNT(poker.hand)) OVER (PARTITION BY h_b.hand) AS mean,
+       COUNT(poker.hand)-AVG(COUNT(poker.hand)) OVER (PARTITION BY h_b.hand) AS difference
+        FROM params, all_hands_blocknums h_b LEFT JOIN poker
+              on h_b.hand=poker.hand AND h_b.blocknum=rownum/(num_rows/num_blocks)
+          GROUP BY h_b.hand, h_b.blocknum)
 SELECT hand, AVG(cnt) AS mean, SUM(difference*difference)/num_blocks AS variance, SUM(cnt) AS total
     FROM hands_per_block,params GROUP BY hand;
+
 
 -- SQLite doesn't have SQRT() built in; use Newton-Raphson approximation to get stddev
 CREATE VIEW IF NOT EXISTS poker_stddev AS
