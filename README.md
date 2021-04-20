@@ -144,5 +144,9 @@ q           page        rownum      orig_rowtext
  4.3|.|           1
 ```
 
+## License
+
+This code is Copyright (C) 2021 RAND Corporation, and provided under the MIT license
+
 Gary  
 <gbriggs@rand.org>
