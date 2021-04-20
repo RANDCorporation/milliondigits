@@ -88,8 +88,8 @@ WITH params AS (SELECT 10 AS num_blocks, COUNT(*) AS num_rows FROM digits_row),
        AVG(COUNT(*)) OVER (PARTITION BY hand) AS mean,
        COUNT(*)-AVG(COUNT(*)) OVER (PARTITION BY hand) AS difference
         FROM params, poker GROUP BY hand, rownum/(num_rows/num_blocks))
-SELECT hand, AVG(cnt) AS mean, SUM(difference*difference)/COUNT(*) AS variance, SUM(cnt) AS total
-    FROM hands_per_block GROUP BY hand;
+SELECT hand, AVG(cnt) AS mean, SUM(difference*difference)/num_blocks AS variance, SUM(cnt) AS total
+    FROM hands_per_block,params GROUP BY hand;
 
 -- SQLite doesn't have SQRT() built in; use Newton-Raphson approximation to get stddev
 CREATE VIEW IF NOT EXISTS poker_stddev AS
