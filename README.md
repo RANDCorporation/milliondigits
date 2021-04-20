@@ -24,6 +24,52 @@ in the paper.
 * In Table 6, *"Run Test"*, I find 31 additional singles, two additional 
   pairs, 1 fewer run of 3, and eight fewer runs of four
 
+## Hypotheses
+
+I hypothesise a number of ways these differences could come about.
+
+### Error in this code, or original code
+
+Given that these results are "incredibly close", it seems unlikely.
+Unfortuantely, the original code is lost to time.
+
+### Transcription Problem
+
+The digits were originally created on 20,000 punchcards. Those went
+through various iterations and interpretations before ending up on
+RAND's website as a digital file. One of the differences identified
+could be literally a single bit-flip, which feels "possible".
+
+### Punchcard Esoterica
+
+I could find no literature on the subject of punchard machines and error
+rates. Perhaps a hanging chad or dimpled chat?
+
+Famously, punchcards would occasionally get dropped and a poor tech
+would have to spend all night reordering them. Much of the code in this
+repository explores the possibility of a deck being out of order. I do
+not find any "smoking gun" cases (a simple re-ordering that would
+simultaneously explain all the differences), but a number of candidate
+reorderings that can explain each individual difference.
+
+### Changes over time
+
+The originalmost paper was missing a digit in print. Various other
+iterations and editions have occurred over time; it's possible that
+these differences appear later.
+
+## Other explorations and tests
+
+The "ocr" folder includes scripts necessary to extract images from PDFs
+of the original paper on RAND's website, for running through a simple
+AI/image recognition tool. The digits handled this way do seem to align
+with that in the digital file.
+
+I estimated it would cost ~3k USD to human-OCR this with Mechanical Turk.
+
+"MDSearch" is a simple Java GUI for automatically populating the search
+table and querying it.
+
 ## Conclusions
 
 * None of these differences are statistically significant,
